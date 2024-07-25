@@ -87,3 +87,88 @@ export const getEigenlayerBoost = (eigenlayerPoints: number) => {
 
   return 1;
 };
+
+export const getOnboardingPointsAndBadge = (xConnected: boolean) => {
+  if (xConnected) {
+    return { points: 500 + 1000 + 500 + 500 + 3000, badges: ['M', 'I', 'T', 'O', 'Welcome'] };
+  } else {
+    return { points: 0, badges: [] };
+  }
+};
+
+interface Level {
+  balance: number;
+  days: number;
+  points: number;
+}
+
+const levels: Level[] = [
+  { balance: 0, days: 0, points: 100 },
+  { balance: 0.001, days: 1, points: 300 },
+  { balance: 0.005, days: 1, points: 500 },
+  { balance: 0.01, days: 1, points: 1000 },
+  { balance: 0.1, days: 3, points: 1500 },
+  { balance: 0.3, days: 3, points: 2000 },
+  { balance: 0.5, days: 3, points: 2500 },
+  { balance: 1, days: 7, points: 3000 },
+  { balance: 3, days: 7, points: 10000 },
+  { balance: 5, days: 7, points: 15000 },
+  { balance: 10, days: 14, points: 35000 },
+  { balance: 10, days: 21, points: 100000 },
+  { balance: 30, days: 28, points: 200000 },
+  { balance: 30, days: 35, points: 500000 },
+  { balance: 50, days: 42, points: 1000000 },
+  { balance: 50, days: 60, points: 2000000 },
+];
+
+export function getHolderPointsAndBadges(depositedAmount: number, heldDays: number) {
+  let totalPoints = 0;
+  const badges: string[] = [];
+
+  for (let i = 0; i < levels.length; i++) {
+    if (depositedAmount >= levels[i].balance && heldDays >= levels[i].days) {
+      totalPoints += levels[i].points;
+      badges.push(`Holder ${i + 1}`);
+    }
+  }
+
+  return { points: totalPoints, badges };
+}
+
+interface EvangelistLevel {
+  referrals: number;
+  points: number;
+}
+
+const evangelistLevels: EvangelistLevel[] = [
+  { referrals: 0, points: 100 },
+  { referrals: 1, points: 300 },
+  { referrals: 2, points: 500 },
+  { referrals: 3, points: 1000 },
+  { referrals: 4, points: 1500 },
+  { referrals: 5, points: 2000 },
+  { referrals: 7, points: 3000 },
+  { referrals: 9, points: 4000 },
+  { referrals: 11, points: 5000 },
+  { referrals: 13, points: 6000 },
+  { referrals: 15, points: 7000 },
+  { referrals: 20, points: 8000 },
+  { referrals: 25, points: 9000 },
+  { referrals: 30, points: 10000 },
+  { referrals: 40, points: 10000 },
+  { referrals: 50, points: 10000 },
+];
+
+export function getEvangelistPointsAndBadges(referredWallets: number) {
+  let totalPoints = 0;
+  const badges: string[] = [];
+
+  for (let i = 0; i < evangelistLevels.length; i++) {
+    if (referredWallets >= evangelistLevels[i].referrals) {
+      totalPoints += evangelistLevels[i].points;
+      badges.push(`Evangelist ${i + 1}`);
+    }
+  }
+
+  return { points: totalPoints, badges };
+}

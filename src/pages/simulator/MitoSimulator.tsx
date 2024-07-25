@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  InputNumber, Form, Radio, Switch, Button, Statistic, Row, Col, Divider,
+  InputNumber, Form, Radio, Switch, Button, Statistic, Row, Col, Divider, Tag, Badge,
 } from 'antd';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { Alert } from 'antd';
@@ -10,24 +10,45 @@ import * as calculatePoints from './calculatePoints';
 interface IPropsResults {
   maxPoints: number,
   minPoints: number,
+  badgePoints: number,
+  badges: string[],
 }
 
 const SimulateResults: React.FC<IPropsResults> = (props) => {
+  const [includingBadgePoints, setIncludingBadgePoints] = useState(true);
+
+  const maxPoints = includingBadgePoints ? props.maxPoints + props.badgePoints : props.maxPoints;
+  const minPoints = includingBadgePoints ? props.minPoints + props.badgePoints : props.minPoints;
+
   return (
     <div>
       <p>
         Here are your simulation results:<br />
-        (Note: this simulation doesn't include the points earned directly from badges)
+        (Note: this simulation doesn't include the points earned from Community badges, Early Adopter badges and Milestones badges)
       </p>
-      <Divider />
+      <Divider>
+        Total Points
+      </Divider>
       <Row gutter={8}>
         <Col span={12}>
-          <Statistic title={<>Max Possible Points<br />(referrals boosts are max utilised)</>} value={props.maxPoints} precision={2} />
+          <Statistic title={<>Max Possible Points<br />(referrals boosts are max utilised)</>} value={maxPoints} precision={2} />
         </Col>
         <Col span={12}>
-          <Statistic title={<>Min Possible Points<br />(referrals happened on the same day)</>} value={props.minPoints} precision={2} />
+          <Statistic title={<>Min Possible Points<br />(referrals happened on the same day)</>} value={minPoints} precision={2} />
         </Col>
       </Row>
+      <div style={{ float: 'left', fontSize: '9', color: 'gray', marginTop: '0.5rem', marginBottom: '1rem' }}>
+        <Switch size="small" defaultChecked onChange={(checked) => setIncludingBadgePoints(checked)} />
+        &nbsp;
+        Toggle to include/exclude badge points(Onboarding, Holder, Evangelist only)
+      </div>
+      <Divider>
+        Earned Badges(Onboarding, Holder, Evangelist only)
+      </Divider>
+      <div style={{ lineHeight: 2 }}>
+        {props.badges.map(badge => <Tag color="gold">{badge}</Tag>)}
+      </div>
+
     </div>
   );
 };
@@ -49,6 +70,8 @@ const MitoSimulator: React.FC<IProps> = ({
 }: IProps) => {
   const [maxPoints, setMaxPoints] = useState(0);
   const [minPoints, setMinPoints] = useState(0);
+  const [badgePoints, setBadgePoints] = useState(0);
+  const [badges, setBadges] = useState<string[]>([]);
   const [simulated, setSimulated] = useState(false);
 
   const [form] = Form.useForm();
@@ -107,28 +130,35 @@ const MitoSimulator: React.FC<IProps> = ({
       minPoints += dayPoints;
     }
 
-    console.log(maxPoints);
-    console.log(minPoints);
+    const onboardingPointsAndBadges = calculatePoints.getOnboardingPointsAndBadge(values.xConnected);
+    const holderPointsAndBadges = calculatePoints.getHolderPointsAndBadges(totalDepositedAmount, values.depositeDays);
+    const evangelistPointsAndBadges = calculatePoints.getEvangelistPointsAndBadges(values.validReferrals);
+
+    const badges = onboardingPointsAndBadges.badges.concat(...holderPointsAndBadges.badges, ...evangelistPointsAndBadges.badges);
+
+    const badgePoints = onboardingPointsAndBadges.points + holderPointsAndBadges.points + evangelistPointsAndBadges.points;
 
     setMaxPoints(maxPoints);
     setMinPoints(minPoints);
+    setBadgePoints(badgePoints);
+    setBadges(badges);
     setSimulated(true);
   };
 
 
   return (
-    <div style={{ paddingBottom: '1rem' }}>
-      <Form
+    <div style={{ paddingBottom: '1rem', maxWidth: 700 }}>
+      <Alert
+        message={<><img width={40} src='morse.png' /><span>&nbsp;Hi I am Morsie, an unofficial Mito Points simulator</span></>}
+        description={`Tell me about your Mitosis profile with ${assetName}. You can switch to other assets above.`}
+        type="success"
+      />
+      {!simulated && <Form
         form={form}
         labelCol={{ span: 12 }}
         wrapperCol={{ span: 12 }}
         onFinish={simulate}
       >
-        <Alert
-          message={<img width={40} src='morse.png' />}
-          description={`Tell me about your Mitosis profile with ${assetName}. You can switch to other assets above.`}
-          type="success"
-        />
         <div
           style={{
             marginTop: '1rem',
@@ -203,7 +233,7 @@ const MitoSimulator: React.FC<IProps> = ({
             </Button>
           </Form.Item>
         </div>
-      </Form>
+      </Form>}
       {simulated && <Alert
         message={
           <div>
@@ -220,7 +250,7 @@ const MitoSimulator: React.FC<IProps> = ({
             </Button>
           </div>
         }
-        description={<SimulateResults maxPoints={maxPoints} minPoints={minPoints} />}
+        description={<SimulateResults maxPoints={maxPoints} minPoints={minPoints} badgePoints={badgePoints} badges={badges} />}
         type="success"
         style={{ marginTop: '1rem' }}
       />}
