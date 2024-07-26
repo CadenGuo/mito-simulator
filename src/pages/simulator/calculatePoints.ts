@@ -89,10 +89,22 @@ export const getEigenlayerBoost = (eigenlayerPoints: number) => {
 };
 
 export const getOnboardingPointsAndBadge = (xConnected: boolean) => {
+  let badges: { [key: string]: number } = {};
+
   if (xConnected) {
-    return { points: 500 + 1000 + 500 + 500 + 3000, badges: ['M', 'I', 'T', 'O', 'Welcome'] };
+    badges = {
+      M: 500,
+      I: 1000,
+      T: 500,
+      O: 500,
+      Welcome: 3000,
+    };
+    return {
+      points: 500 + 1000 + 500 + 500 + 3000,
+      badges,
+    };
   } else {
-    return { points: 0, badges: [] };
+    return { points: 0, badges };
   }
 };
 
@@ -121,16 +133,21 @@ const levels: Level[] = [
   { balance: 50, days: 60, points: 2000000 },
 ];
 
-export function getHolderPointsAndBadges(depositedAmount: number, heldDays: number) {
+export function getHolderPointsAndBadges(depositedAmount: number, heldDays: number, xConnected: boolean) {
   let totalPoints = 0;
-  const badges: string[] = [];
+  const badges: { [key: string]: number } = {};
 
-  for (let i = 0; i < levels.length; i++) {
+  if (xConnected) {
+    totalPoints += levels[0].points;
+    badges[`Holder 1`] = levels[0].points;
+  }
+  for (let i = 1; i < levels.length; i++) {
     if (depositedAmount >= levels[i].balance && heldDays >= levels[i].days) {
       totalPoints += levels[i].points;
-      badges.push(`Holder ${i + 1}`);
+      badges[`Holder ${i + 1}`] = levels[i].points;
     }
   }
+
 
   return { points: totalPoints, badges };
 }
@@ -159,14 +176,19 @@ const evangelistLevels: EvangelistLevel[] = [
   { referrals: 50, points: 10000 },
 ];
 
-export function getEvangelistPointsAndBadges(referredWallets: number) {
+export function getEvangelistPointsAndBadges(referredWallets: number, xConnected: boolean) {
   let totalPoints = 0;
-  const badges: string[] = [];
+  const badges: { [key: string]: number } = {};
 
-  for (let i = 0; i < evangelistLevels.length; i++) {
+  if (xConnected) {
+    totalPoints += evangelistLevels[0].points;
+    badges[`Evangelist 1`] = evangelistLevels[0].points;
+  }
+
+  for (let i = 1; i < evangelistLevels.length; i++) {
     if (referredWallets >= evangelistLevels[i].referrals) {
       totalPoints += evangelistLevels[i].points;
-      badges.push(`Evangelist ${i + 1}`);
+      badges[`Evangelist ${i + 1}`] = evangelistLevels[i].points;
     }
   }
 

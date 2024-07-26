@@ -1,24 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  InputNumber, Form, Radio, Switch, Button, Statistic, Row, Col, Divider, Tag, Badge,
+  InputNumber, Form, Radio, Switch, Button, Statistic, Row, Col, Divider, Tag, Affix, Checkbox,
 } from 'antd';
+import type { StatisticProps } from 'antd';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { Alert } from 'antd';
+import CountUp from 'react-countup';
 import { Colors } from '../../constants';
 import * as calculatePoints from './calculatePoints';
+
+const getFormatter: (commaDecimal: boolean) => StatisticProps['formatter'] = (commaDecimal: boolean) => (value) => (
+  <CountUp end={value as number} separator={commaDecimal ? '.' : ','} decimal={commaDecimal ? ',' : '.'} decimals={2} duration={0.3} />
+);
 
 interface IPropsResults {
   maxPoints: number,
   minPoints: number,
-  badgePoints: number,
-  badges: string[],
+  badges: { [key: string]: number },
 }
 
 const SimulateResults: React.FC<IPropsResults> = (props) => {
-  const [includingBadgePoints, setIncludingBadgePoints] = useState(true);
+  const [excludedBadges, setExcludedBadges] = useState<string[]>(Object.keys(props.badges));
+  const [commaDecimal, setCommaDecimal] = useState(false);
 
-  const maxPoints = includingBadgePoints ? props.maxPoints + props.badgePoints : props.maxPoints;
-  const minPoints = includingBadgePoints ? props.minPoints + props.badgePoints : props.minPoints;
+  let maxPoints = props.maxPoints;
+  let minPoints = props.minPoints;
+  Object.keys(props.badges).forEach(badge => {
+    if (excludedBadges.includes(badge)) {
+      return;
+    }
+    maxPoints += props.badges[badge];
+    minPoints += props.badges[badge];
+  });
+
+  const badgePartialIncluded = excludedBadges.length > 0 && excludedBadges.length < Object.keys(props.badges).length;
+  const badgeAllIncluded = excludedBadges.length === 0;
 
   return (
     <div>
@@ -31,24 +47,61 @@ const SimulateResults: React.FC<IPropsResults> = (props) => {
       </Divider>
       <Row gutter={8}>
         <Col span={12}>
-          <Statistic title={<>Max Possible Points<br />(referrals boosts are max utilised)</>} value={maxPoints} precision={2} />
+          <Statistic title={<>Max Possible Points<br />(referrals boosts are max utilised)</>} value={maxPoints} precision={2} formatter={getFormatter(commaDecimal)} />
         </Col>
         <Col span={12}>
-          <Statistic title={<>Min Possible Points<br />(referrals happened on the same day)</>} value={minPoints} precision={2} />
+          <Statistic title={<>Min Possible Points<br />(referrals happened on the same day)</>} value={minPoints} precision={2} formatter={getFormatter(commaDecimal)} />
         </Col>
       </Row>
       <div style={{ float: 'left', fontSize: '9', color: 'gray', marginTop: '0.5rem', marginBottom: '1rem' }}>
-        <Switch size="small" defaultChecked onChange={(checked) => setIncludingBadgePoints(checked)} />
+        {/* <Switch size="small" defaultChecked onChange={(checked) => setIncludingBadgePoints(checked)} />
         &nbsp;
-        Toggle to include/exclude badge points(Onboarding, Holder, Evangelist only)
+        Toggle to include/exclude badge points(Onboarding, Holder, Evangelist only)<br /> */}
+        <Switch size="small" onChange={(checked) => setCommaDecimal(checked)} />
+        &nbsp;
+        Toggle to switch decimal displaying mode("." or ",")
       </div>
       <Divider>
         Earned Badges(Onboarding, Holder, Evangelist only)
       </Divider>
       <div style={{ lineHeight: 2 }}>
-        {props.badges.map(badge => <Tag color="gold">{badge}</Tag>)}
+        <p style={{ color: 'gray' }}>
+          Tip: click on each badge to include/exclude the points from the total results.
+          <br />
+          Or you can include/exclude all badge points here&nbsp;
+          <Checkbox
+            indeterminate={badgePartialIncluded}
+            onChange={(e) => {
+              if (e.target.checked) {
+                setExcludedBadges([]);
+              } else {
+                setExcludedBadges(Object.keys(props.badges));
+              }
+            }}
+            checked={badgeAllIncluded}
+          />
+        </p>
+        {Object.entries(props.badges).map(([badge]) => (
+          <Tag.CheckableTag
+            style={{
+              width: 100,
+              textAlign: 'center',
+              borderColor: Colors.PURPLE,
+              borderStyle: 'solid',
+            }}
+            checked={!excludedBadges.includes(badge)}
+            onChange={(checked) => {
+              if (!checked) {
+                setExcludedBadges(excludedBadges.concat([badge]));
+              } else {
+                setExcludedBadges(excludedBadges.filter(oldBadge => oldBadge != badge));
+              }
+            }}
+          >
+            {badge}
+          </Tag.CheckableTag>
+        ))}
       </div>
-
     </div>
   );
 };
@@ -70,9 +123,7 @@ const MitoSimulator: React.FC<IProps> = ({
 }: IProps) => {
   const [maxPoints, setMaxPoints] = useState(0);
   const [minPoints, setMinPoints] = useState(0);
-  const [badgePoints, setBadgePoints] = useState(0);
-  const [badges, setBadges] = useState<string[]>([]);
-  const [simulated, setSimulated] = useState(false);
+  const [badges, setBadges] = useState<{ [key: string]: number }>({});
 
   const [form] = Form.useForm();
 
@@ -131,129 +182,134 @@ const MitoSimulator: React.FC<IProps> = ({
     }
 
     const onboardingPointsAndBadges = calculatePoints.getOnboardingPointsAndBadge(values.xConnected);
-    const holderPointsAndBadges = calculatePoints.getHolderPointsAndBadges(totalDepositedAmount, values.depositeDays);
-    const evangelistPointsAndBadges = calculatePoints.getEvangelistPointsAndBadges(values.validReferrals);
+    const holderPointsAndBadges = calculatePoints.getHolderPointsAndBadges(totalDepositedAmount, values.depositeDays, values.xConnected);
+    const evangelistPointsAndBadges = calculatePoints.getEvangelistPointsAndBadges(values.validReferrals, values.xConnected);
 
-    const badges = onboardingPointsAndBadges.badges.concat(...holderPointsAndBadges.badges, ...evangelistPointsAndBadges.badges);
-
-    const badgePoints = onboardingPointsAndBadges.points + holderPointsAndBadges.points + evangelistPointsAndBadges.points;
+    const badges = {
+      ...onboardingPointsAndBadges.badges,
+      ...holderPointsAndBadges.badges,
+      ...evangelistPointsAndBadges.badges,
+    };
 
     setMaxPoints(maxPoints);
     setMinPoints(minPoints);
-    setBadgePoints(badgePoints);
     setBadges(badges);
-    setSimulated(true);
   };
 
+  useEffect(() => {
+    simulate(form.getFieldsValue());
+  }, [form.getFieldsValue()]);
 
   return (
-    <div style={{ paddingBottom: '1rem', maxWidth: 700 }}>
+    <div style={{ paddingBottom: '1rem' }}>
       <Alert
         message={<><img width={40} src='morse.png' /><span>&nbsp;Hi I am Morsie, an unofficial Mito Points simulator</span></>}
-        description={`Tell me about your Mitosis profile with ${assetName}. You can switch to other assets above.`}
+        description={`Tell me about your Mitosis profile with ${assetName}, and your simulated Mito Points will be displayed instantly on the right side. You can switch to other assets above.`}
         type="success"
       />
-      {!simulated && <Form
-        form={form}
-        labelCol={{ span: 12 }}
-        wrapperCol={{ span: 12 }}
-        onFinish={simulate}
-      >
-        <div
-          style={{
-            marginTop: '1rem',
-            backgroundColor: Colors.WHITE_PURPLE,
-            paddingTop: 30,
-            paddingLeft: 20,
-            paddingRight: 20,
-            paddingBottom: 20,
-            borderStyle: 'solid',
-            borderWidth: '1px',
-            borderColor: Colors.LIGHT_PURPLE,
-            borderRadius: 25,
-          }}
-        >
-          {Object.keys(chainMultipliers).map((key) => {
-            return <Form.Item label={<>{`${assetName} Deposited(${key})`}&nbsp;<img width={20} src={`${key.toLowerCase()}.svg`} /></>} name={`${assetName}Deposited_${key}`} initialValue={0}>
-              <InputNumber />
-            </Form.Item>;
-          })}
-          <Form.Item label="Deposit Days" name="depositeDays" initialValue={30}>
-            <InputNumber suffix="Days" />
-          </Form.Item>
-          {hasEigenLayer && <Form.Item label="Eigenlayer Points" name="eigenlayerPoints" initialValue={5000}>
-            <InputNumber />
-          </Form.Item>}
-          <Form.Item label="Valid Referrals" name="validReferrals" initialValue={2} tooltip="Only user who is referred by you and have deposited >= 0.1 weETH is considered valid">
-            <InputNumber />
-          </Form.Item>
-          <Form.Item label="First Deposit Epoch" name="firstDepositEpoch" initialValue="1" layout="horizontal">
-            <Radio.Group>
-              {Object.keys(epochMultipliers).map((key) => {
-                return (
-                  <Radio value={key}>{key}</Radio>
-                );
-              })}
-            </Radio.Group>
-          </Form.Item>
-          {hasTestnet && <Form.Item label="Testnet Tier" name="testnetTier" initialValue="none">
-            <Radio.Group>
-              <Radio value="none">None</Radio>
-              <Radio value="bronze">Bronze</Radio>
-              <Radio value="silver">Silver</Radio>
-              <Radio value="gold">Gold</Radio>
-              <Radio value="platinum">Platinum</Radio>
-              <Radio value="diamond">Diamond</Radio>
-            </Radio.Group>
-          </Form.Item>}
-          <Form.Item label="X Connected" name="xConnected" initialValue={true}>
-            <Switch
-              checkedChildren={<CheckOutlined />}
-              unCheckedChildren={<CloseOutlined />}
-            />
-          </Form.Item>
-          <Form.Item label="Applied Referral Code" name="appliedReferralCode" initialValue={true}>
-            <Switch
-              checkedChildren={<CheckOutlined />}
-              unCheckedChildren={<CloseOutlined />}
-            />
-          </Form.Item>
-          <Form.Item label={<>Have 1 Morse&nbsp;<img width={22} src="morse.png" /></>} name="have1Morse" initialValue={true}>
-            <Switch
-              checkedChildren={<CheckOutlined />}
-              unCheckedChildren={<CloseOutlined />}
-            />
-          </Form.Item>
-          <Form.Item label=" " colon={false} labelCol={{ span: 12 }} wrapperCol={{ span: 12 }}>
-            <Button type="primary" htmlType="submit" style={{ marginRight: '1rem' }}>
-              Simulate
-            </Button>
-            <Button onClick={() => form.resetFields()}>
-              Reset
-            </Button>
-          </Form.Item>
-        </div>
-      </Form>}
-      {simulated && <Alert
-        message={
-          <div>
-            <img width={40} src='morse.png' />
-            <Button
-              type="primary"
-              style={{ float: 'right' }}
-              onClick={() => {
-                form.resetFields();
-                setSimulated(false);
+      <Row gutter={16}>
+        <Col span={12}>
+          <Form
+            form={form}
+            labelCol={{ span: 12 }}
+            wrapperCol={{ span: 12 }}
+            // onValuesChange={(_, values) => simulate(values)}
+          >
+            <div
+              style={{
+                marginTop: '1rem',
+                backgroundColor: Colors.WHITE_PURPLE,
+                paddingTop: 30,
+                paddingLeft: 20,
+                paddingRight: 20,
+                paddingBottom: 20,
+                borderStyle: 'solid',
+                borderWidth: '1px',
+                borderColor: Colors.LIGHT_PURPLE,
+                borderRadius: 25,
               }}
             >
-              Start Over
-            </Button>
-          </div>
-        }
-        description={<SimulateResults maxPoints={maxPoints} minPoints={minPoints} badgePoints={badgePoints} badges={badges} />}
-        type="success"
-        style={{ marginTop: '1rem' }}
-      />}
+              {Object.keys(chainMultipliers).map((key) => {
+                return <Form.Item label={<>{`${assetName} Deposited(${key})`}&nbsp;<img width={20} src={`${key.toLowerCase()}.svg`} /></>} name={`${assetName}Deposited_${key}`} initialValue={0}>
+                  <InputNumber />
+                </Form.Item>;
+              })}
+              <Form.Item label="Deposit Days" name="depositeDays" initialValue={30}>
+                <InputNumber suffix="Days" />
+              </Form.Item>
+              {hasEigenLayer && <Form.Item label="Eigenlayer Points" name="eigenlayerPoints" initialValue={5000}>
+                <InputNumber />
+              </Form.Item>}
+              <Form.Item label="Valid Referrals" name="validReferrals" initialValue={2} tooltip="Only user who is referred by you and have deposited >= 0.1 weETH is considered valid">
+                <InputNumber />
+              </Form.Item>
+              <Form.Item label="First Deposit Epoch" name="firstDepositEpoch" initialValue="1" layout="horizontal">
+                <Radio.Group>
+                  {Object.keys(epochMultipliers).map((key) => {
+                    return (
+                      <Radio value={key}>{key}</Radio>
+                    );
+                  })}
+                </Radio.Group>
+              </Form.Item>
+              {hasTestnet && <Form.Item label="Testnet Tier" name="testnetTier" initialValue="none">
+                <Radio.Group>
+                  <Radio value="none">None</Radio>
+                  <Radio value="bronze">Bronze</Radio>
+                  <Radio value="silver">Silver</Radio>
+                  <Radio value="gold">Gold</Radio>
+                  <Radio value="platinum">Platinum</Radio>
+                  <Radio value="diamond">Diamond</Radio>
+                </Radio.Group>
+              </Form.Item>}
+              <Form.Item label="X Connected" name="xConnected" initialValue={true}>
+                <Switch
+                  checkedChildren={<CheckOutlined />}
+                  unCheckedChildren={<CloseOutlined />}
+                />
+              </Form.Item>
+              <Form.Item label="Applied Referral Code (Welcome boost)" name="appliedReferralCode" initialValue={true}>
+                <Switch
+                  checkedChildren={<CheckOutlined />}
+                  unCheckedChildren={<CloseOutlined />}
+                />
+              </Form.Item>
+              <Form.Item label={<>Have 1 Morse&nbsp;<img width={22} src="morse.png" /></>} name="have1Morse" initialValue={true}>
+                <Switch
+                  checkedChildren={<CheckOutlined />}
+                  unCheckedChildren={<CloseOutlined />}
+                />
+              </Form.Item>
+            </div>
+          </Form>
+        </Col>
+        <Col span={12}>
+          <Affix>
+            <Alert
+              message={
+                <div>
+                  <img width={40} src='morse.png' />
+                  <Button
+                    type="primary"
+                    style={{ float: 'right' }}
+                    onClick={() => {
+                      form.resetFields();
+                      setMaxPoints(0);
+                      setMinPoints(0);
+                      setBadges({});
+                    }}
+                  >
+                    Start Over
+                  </Button>
+                </div>
+              }
+              description={<SimulateResults maxPoints={maxPoints} minPoints={minPoints} badges={badges} />}
+              type="success"
+              style={{ marginTop: '1rem' }}
+            />
+          </Affix>
+        </Col>
+      </Row>
     </div>
   );
 };
